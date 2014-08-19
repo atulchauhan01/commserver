@@ -72,12 +72,12 @@ public class Client1 extends Thread {
     public void run() {
 
         try {
-            for (int i = 0; i < 2; i++) {
+            for (int i = 0; i < 5; i++) {
 
                 System.out.println("Thread executed!" + data);
                 dataOutputStream.writeBytes(data);
 
-                Thread.sleep(10000L);
+                Thread.sleep(1000L);
 
             }
         } catch (Exception e) {
@@ -91,7 +91,7 @@ public class Client1 extends Thread {
      */
     public static void main(String[] args) {
 
-        Client1 client = new Client1();
+        //Client1 client = new Client1();
         Client1.publishData();
         Thread clientThread = new Client1();
         clientThread.start();

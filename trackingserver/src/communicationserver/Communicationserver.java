@@ -41,7 +41,7 @@ public class Communicationserver
         try {
             ServerSocket socket1 = new ServerSocket(port);
 
-           // String AGVServerlog = "*************************Start Server*******************************";
+            // String AGVServerlog = "*************************Start Server*******************************";
             System.out.println("Mobile Server Initialized");
 
             Runnable ro = new Runnable() {
@@ -52,8 +52,7 @@ public class Communicationserver
                             Thread.sleep(400L);
                         }
                     } catch (Exception iex) {
-                        System.out.println("Exception- Monitor Thread: "
-                                + iex.getMessage());
+                        System.out.println("Exception- Monitor Thread: "+ iex.getMessage());
                     }
                 }
             };
@@ -160,14 +159,16 @@ public class Communicationserver
 
                     System.out.println("Socket: " + this.connection + "count: " + thisThread.getId() + " " + data);
                     String data1 = new String(data);
-                    Date date1 = new Date();
+                    //Date date1 = new Date();
 
-                    String date2 = date1.toString();
+                    //String date2 = date1.toString();
                     if (data1.length() < 92) {
-                        continue;
+                        System.out.println("data1.length() :::::"+data1.length());
+                        continue;                        
                     }
                     Parser parse = new Parser();
                     synchronized (parse) {
+                        System.out.println("parse : "+data1);
                         parse.parseData(data1);
                     }
 

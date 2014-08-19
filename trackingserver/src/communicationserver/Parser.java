@@ -146,9 +146,8 @@ public class Parser
     try
     {
       Class.forName("com.mysql.jdbc.Driver");
-      Connection con = DriverManager.getConnection(
-        "jdbc:mysql://localhost:3306/travelma_trackman", 
-        "travelma_travel", "abc@123");
+      Connection con = DriverManager.getConnection("jdbc:mysql://localhost:3306/trackman", "root", "root");
+        System.out.println("Connection :::::::::::"+ con);
 
       String data1 = new String(data);
       Date date1 = new Date();
@@ -157,14 +156,13 @@ public class Parser
 
       Statement statement = con.createStatement();
       ResultSet resultSet = statement.executeQuery("select max(messageid) as messageid  from audit");
+        System.out.println("maxid");
       int id = 0;
       resultSet.getFetchSize();
       if ((resultSet != null) && (resultSet.last())) {
         id = resultSet.getInt("messageid") + 1;
       }
-      PreparedStatement pst = con
-        .prepareStatement("insert into audit values(" + 
-        id + ",?,?)");
+      PreparedStatement pst = con.prepareStatement("insert into audit values(" +id + ",?,?)");
       pst.setString(1, date2);
       pst.setString(2, data1);
       System.out.println("#################################################################");
