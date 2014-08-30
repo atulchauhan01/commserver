@@ -1,194 +1,95 @@
 package com.smartappservices.gps.server;
 
 import java.io.BufferedInputStream;
+import java.io.IOException;
 import java.io.InputStreamReader;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.sql.SQLException;
-import java.util.Calendar;
-import java.util.Date;
-import java.util.HashMap;
-import java.util.Map;
-import com.smartappservices.gps.server.Parser;
-
-
-
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 public class CommunicationServer implements Runnable {
 
-    private Socket connection;
-    private int ID;
-    public static Map receiveMaster = new HashMap();       //Store Thread Id and last time to receive data
-     
-    int character = 0;//Variable for store character
-    String ICId = "";//Variable for store IC
-    int byteCount = 1;//Variable for byte counter
-    boolean crcStatus = false;//Variable for store CRC status
-    boolean isData = false;//Variable for store CRC status
-    char c, crcByte = 0;//Variable for store CRC byte
-    int helloByte = 0;//Variable for hello byte
+    private final Socket connection;
+    private static final int port = 4014;//Listening Port No.
 
     public static void main(String[] args) throws SQLException {
 
-        int port = 4014;//Listening Port No.
-        int count = 0;
-        Socket conn = null;
+        Socket listeningSocket = null;
         try {
             ServerSocket serverSocket = new ServerSocket(port);// Open socket
             System.out.println("Mobile Server Initialized");
-            Runnable monitorThread = new Runnable() {
 
-                public void run() {
-                    try {
-                        while (true) {
-                        System.out.print("Inside Monitor thread");
-                            Thread.sleep(400);
-                        }
-                        
-                    } catch (Exception exception) {
-                        System.out.println("Exception- Monitor Thread: " + exception.getMessage());
-                    }
-                }
-            };
-            
-            Thread receiveObserver = new Thread(monitorThread);// Create monitor thread
-            receiveObserver.setName("Recieve Observer");
-            receiveObserver.start();
-          
             while (true) {
-                if (conn == null) {
-                    
-                    Socket serverSocketConnection = serverSocket.accept();//Connection accept
-                    conn = serverSocketConnection;
-                    
-                    Runnable runnable = new CommunicationServer(conn, count);
-                    
-                    Thread thread = new Thread(runnable);// Create new serverSocketConnection or thread
-                    conn = null;
-                    thread.start();
-                    count++;
-                }else{
-                  System.out.println(" Conn not null" );        
-                }
+                listeningSocket = serverSocket.accept();
+                Thread newVehicleThread = new Thread(new CommunicationServer(listeningSocket));
+                newVehicleThread.setName("New Vehicle");
+                newVehicleThread.start();
+
             }
-        } catch (Exception e) {
-            System.out.println(" Exception main" + e.getMessage());
+        } catch (IOException ioException) {
+            System.out.println(" Exception main" + ioException.getMessage());
         }
-    }//main ends here
-
-    CommunicationServer(Socket socket, int count) {
-        
-        this.connection = socket;//Store serverSocketConnection
-        this.ID = count;//Store id
-
     }
 
-    
-    synchronized public void run() { // Modify on 07-08-2008
+    CommunicationServer(Socket socket) {
+        this.connection = socket;//Store serverSocketConnection
+    }
 
+    @Override
+    synchronized public void run() {
+        int character, inCount;
         Thread thisThread = Thread.currentThread();
         try {
+            StringBuilder deviceData = new StringBuilder();
             while (true) {
-                System.out.println("Current thread: " + thisThread.getId());
-                System.out.println("Current Name: " + thisThread.getName());
-                
-
+                deviceData.delete(0, deviceData.length());
+                //System.out.println("Current thread Id :: " + thisThread.getId() + "# Current Thread Name::" + thisThread.getName());
                 if (thisThread.isAlive()) {// Check this thread is alive or not
 
-                    BufferedInputStream is = new BufferedInputStream(connection.getInputStream());
-                    InputStreamReader isr = new InputStreamReader(is);
-                    character = 0;//Variable for store character
+                    InputStreamReader inputStreamReader = new InputStreamReader(new BufferedInputStream(connection.getInputStream()));
 
-                    ICId = "";//Variable for store IC
-                    byteCount = 1;//Variable for byte counter
-                    crcStatus = false;//Variable for store CRC status
-                    isData = false;//Variable for store CRC status
-                    char c = 0;
-                    crcByte = 0;//Variable for store CRC byte
-                    helloByte = 0;//Variable for hello byte
-
-                    StringBuffer data = new StringBuffer();
-                    /**
-                     * ******** Start to Send Data*********
-                     */
-                    if (isr.ready()) {
-                        if ((character = isr.read()) == -1) {//Check that this is not end of stream
-
+                    if (inputStreamReader.ready()) {
+                        if ((character = inputStreamReader.read()) == -1) {//Check that this is not end of stream
+                            System.out.println("## End of Stream ");
                             break;
                         } else {
-                            c = (char) character;//Read data and store in c
-
-                            data.append(c);// Add this character in data 
-
-                            helloByte = character;
-                            crcByte = (char) (crcByte ^ c);// Calculate CRC
-
-                            byteCount++;
-                            receiveMaster.put(thisThread.getId(), Calendar.getInstance().getTimeInMillis());// Store in running table
-
+                            deviceData.append((char) character);// Add this character in data 
+                            inCount = 1;
+                            while (inCount == 1) {
+                                if (inputStreamReader.ready()) {
+                                    
+                                    deviceData.append((char) inputStreamReader.read());
+                                } else {
+                                    inCount = -1;
+                                }
+                            }//while
                         }
                     }
-                    try {
-                        int inCount = 1;
-                        while (inCount == 1) {
-                            if (isr.ready() == true) {//Check that stream is not empty
-
-                                character = isr.read();
-                                c = (char) character;//Read data and store in c
-
-                                data.append(c);// Add this character in data 
-
-                                if (byteCount == 2 && helloByte == 165) {//Check that first byte is hello byte and byte count is second
-
-                                    ICId = String.valueOf((char) character);// This read char is IC Id
-
-                                }
-                                /**
-                                 * *Verify Packet**
-                                 */
-                                crcByte = (char) (crcByte ^ c);// Calculate CRC
-
-                                if (crcByte == 0) {//verify tha packet 
-
-                                    crcStatus = true;
-                                }
-                                /**
-                                 * *End Verify Packet**
-                                 */
-                                byteCount++;
-                                isData = true;
-                            } else {
-                                inCount = -1;
-                            }
-                        }//while
-
-                    } //try
-                    catch (Exception e) {
-                        System.out.println("Read" + e.getMessage());
-                    }
-                    System.out.println("Socket: " + connection + "count: " + thisThread.getId() + " " + data);
-                    String data1 = new String(data);
-                    Date date1 = new Date();//date
-
-                    String date2 = date1.toString();
-                    if ((data1.length()) >= 92) {
-                        //for seperating data
-                        Parser parse = new Parser();
-                        parse.parseData(data1);
-
+                    //System.out.println("Socket: " + connection + "count: " + thisThread.getId() + " " + deviceData.toString());
+                   
+                    if ((deviceData.length()) >= 92) {
+                        System.out.println("Data from Vehicle Socket: " + connection + "count: " + thisThread.getId() + " " + deviceData.toString());
+                        //Parser parse = new Parser();
+                        // parse.parseData(data1,dbconnection);
+                    } else {
+                       // System.out.println("Socket: " + connection + "count: " + thisThread.getId() + " Data Length is less than 92 " + deviceData.toString());
                     }
 
-                }//if
-
+                } else {
+                    System.out.println("Thread is not alive. ");
+                }
+                Thread.sleep(200);
             }//while
-            Thread.sleep(400);
+        } catch (IOException exception) {
+            exception.printStackTrace(System.out);
+            System.out.println(exception.getMessage());
 
-        } catch (Exception e) {
-            System.out.println(e.getMessage());
-
+        } catch (InterruptedException ex) {
+            Logger.getLogger(CommunicationServer.class.getName()).log(Level.SEVERE, null, ex);
         } finally {
-            String AGVServerlog = "*************************Stop Server*******************************";
+            System.out.println("I am Done. ");
         }
-
     }//synchronized run method end here
 }
