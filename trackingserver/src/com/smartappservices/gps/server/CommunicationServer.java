@@ -8,14 +8,16 @@ import java.net.Socket;
 import java.sql.SQLException;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import snaq.db.DBPoolDataSource;
 
 public class CommunicationServer implements Runnable {
 
+    private static DBPoolDataSource dBPoolDataSource = null;
     private final Socket connection;
     private static final int port = 4014;//Listening Port No.
 
     public static void main(String[] args) throws SQLException {
-
+     dBPoolDataSource = DBConnectionPoolManager.getDataSource();
         Socket listeningSocket = null;
         try {
             ServerSocket serverSocket = new ServerSocket(port);// Open socket
@@ -38,7 +40,7 @@ public class CommunicationServer implements Runnable {
     }
 
     @Override
-    synchronized public void run() {
+     public void run() {
         int character, inCount;
         Thread thisThread = Thread.currentThread();
         try {
@@ -71,8 +73,8 @@ public class CommunicationServer implements Runnable {
                    
                     if ((deviceData.length()) >= 92) {
                         System.out.println("Data from Vehicle Socket: " + connection + "count: " + thisThread.getId() + " " + deviceData.toString());
-                        //Parser parse = new Parser();
-                        // parse.parseData(data1,dbconnection);
+                        Parser parse = new Parser();
+                         parse.parseData(deviceData.toString(),dBPoolDataSource);
                     } else {
                        // System.out.println("Socket: " + connection + "count: " + thisThread.getId() + " Data Length is less than 92 " + deviceData.toString());
                     }
@@ -80,7 +82,7 @@ public class CommunicationServer implements Runnable {
                 } else {
                     System.out.println("Thread is not alive. ");
                 }
-                Thread.sleep(200);
+                Thread.sleep(100);
             }//while
         } catch (IOException exception) {
             exception.printStackTrace(System.out);
