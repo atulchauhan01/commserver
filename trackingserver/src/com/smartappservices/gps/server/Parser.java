@@ -1,19 +1,22 @@
 package com.smartappservices.gps.server;
 
 import java.sql.Connection;
-import java.sql.DriverManager;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
+import java.sql.SQLException;
 import java.sql.Statement;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.TimeZone;
-
-
-
+import java.util.logging.Level;
+import java.util.logging.Logger;
+import snaq.db.DBPoolDataSource;
 
 public class Parser {
+
+    private static DBPoolDataSource dBPoolDataSource = null;
+    //private static Connection connection = null;
 
     String phone_no;
     String device18Id;
@@ -33,6 +36,12 @@ public class Parser {
     String mileageinHexa6;
     String finalDate;
 
+  
+    public void parseData(String data, DBPoolDataSource poolDataSource) {
+        
+        this.dBPoolDataSource = poolDataSource;
+        parseData(data);
+    }
     public void parseData(String data) {
         if (data.length() == 95) {
             int i = data.length();
@@ -52,13 +61,13 @@ public class Parser {
             date6 = data.substring(32, 38);
 
             /**
-             *  Now generate right format from date6.
+             * Now generate right format from date6.
              */
             String year = date6.substring(0, 2);
             String month = date6.substring(2, 4);
             String day = date6.substring(4, 6);
             int j = Integer.parseInt(month);
-            
+
             switch (j) {
                 case 1:
                     finalDate = "20" + year + "-01-" + day + " " + ISTnew;
@@ -112,7 +121,6 @@ public class Parser {
             } catch (ParseException e) {
                 System.out.println(e + "Date Format error");
             }
-
 
             availability = data.substring(38, 39);
             //System.out.println("availability="+availability);
@@ -144,8 +152,6 @@ public class Parser {
             speed5 = data.substring(60, 65);
             //System.out.println("speed5="+speed5);
 
-
-
             angle6 = data.substring(71, 77);
             //System.out.println("angle6="+angle6);
 
@@ -165,30 +171,28 @@ public class Parser {
             //System.out.println("mileageinHexa6="+mileageinHexa6); 	
         } else {
             int i = data.length();
-            System.out.println("length=" + i);
+            //System.out.println("length=" + i);
             phone_no = data.substring(1, 13);
-            System.out.println("phone11No=" + phone_no + "  Length==>" + phone_no.length());
+            //System.out.println("phone11No=" + phone_no + "  Length==>" + phone_no.length());
 
             device18Id = data.substring(13, 32);
-            System.out.println("device18Id=" + device18Id + "  Length==>" + device18Id.length());
+            //System.out.println("device18Id=" + device18Id + "  Length==>" + device18Id.length());
 
             time6 = data.substring(65, 71);
             IST time = new IST();
             String ISTnew = time.setIST(time6);
             //convert 5:30
-            System.out.println("time6=" + time6 + "  Length==>" + time6.length());
+            //System.out.println("time6=" + time6 + "  Length==>" + time6.length());
 
             date6 = data.substring(32, 38);
 
             /**
-             *  Now generate right format from date6.
+             * Now generate right format from date6.
              */
             String year = date6.substring(0, 2);
             String month = date6.substring(2, 4);
             String day = date6.substring(4, 6);
             int j = Integer.parseInt(month);
-
-
 
             switch (j) {
                 case 1:
@@ -244,9 +248,8 @@ public class Parser {
                 System.out.println(e + "Date Format error");
             }
 
-
             availability = data.substring(38, 39);
-            System.out.println("availability=" + availability + "  Length==>" + availability.length());
+            //System.out.println("availability=" + availability + "  Length==>" + availability.length());
 
             Float fdegree = null;
             Float fmin = null;
@@ -268,77 +271,144 @@ public class Parser {
             longitude10 = fdegree.toString();
 
             east = data.substring(59, 60);
-            System.out.println("east=" + east + "  Length==>" + east.length());
+            //System.out.println("east=" + east + "  Length==>" + east.length());
 
             speed5 = data.substring(60, 65);
-            System.out.println("speed5=" + speed5 + "  Length==>" + speed5.length());
-
-
+            //System.out.println("speed5=" + speed5 + "  Length==>" + speed5.length());
 
             angle6 = data.substring(71, 77);
-            System.out.println("angle6=" + angle6 + "  Length==>" + angle6.length());
+            //System.out.println("angle6=" + angle6 + "  Length==>" + angle6.length());
 
             powerStatus = data.substring(79, 80);
-            System.out.println("powerStatus=" + powerStatus + "  Length==>" + powerStatus.length());
+            //System.out.println("powerStatus=" + powerStatus + "  Length==>" + powerStatus.length());
 
             accStatus = data.substring(80, 81);
-            System.out.println("accStatus=" + accStatus + "  Length==>" + accStatus.length());
+            //System.out.println("accStatus=" + accStatus + "  Length==>" + accStatus.length());
 
             reserved7 = data.substring(81, 87);
-            System.out.println("reserved7=" + reserved7 + "  Length==>" + reserved7.length());
+            //System.out.println("reserved7=" + reserved7 + "  Length==>" + reserved7.length());
 
             mileage = data.substring(87, 88);
-            System.out.println("mileage=" + mileage + "  Length==>" + mileage.length());
+            //System.out.println("mileage=" + mileage + "  Length==>" + mileage.length());
 
             mileageinHexa6 = data.substring(88, 96);
-            System.out.println("mileageinHexa6=" + mileageinHexa6 + "  Length==>" + mileageinHexa6.length());
+            //System.out.println("mileageinHexa6=" + mileageinHexa6 + "  Length==>" + mileageinHexa6.length());
 
         }
+        Connection connection = null;
+        ResultSet resultSet = null;
+        Statement statement = null;
+        PreparedStatement preparedStatement = null;
 
         try {
 
-            Class.forName("com.mysql.jdbc.Driver");
-            Connection con = DriverManager.getConnection("jdbc:mysql://localhost:3306/trackman", "root", "root");
+            if (connection == null) {
+
+                connection = dBPoolDataSource.getConnection();
+
+            }
 
             String data1 = data;
             Date date1 = new Date();
 
             String date2 = date1.toString();
 
-            Statement statement = con.createStatement();
-            ResultSet resultSet = statement.executeQuery("select max(messageid) as messageid  from audit");
-            int id = 0;
-            resultSet.getFetchSize();
-            if ((resultSet != null) && (resultSet.last())) {
-                id = resultSet.getInt("messageid") + 1;
-            }
-            PreparedStatement pst = con.prepareStatement("insert into audit values(" + id + ",?,?)");
-            pst.setString(1, date2);
-            pst.setString(2, data1);
+//             statement = this.connection.createStatement();
+//             resultSet = statement.executeQuery("select max(messageid) as messageid  from audit");
+//            int id = 0;
+//            resultSet.getFetchSize();
+//            if ((resultSet != null) && (resultSet.last())) {
+//                id = resultSet.getInt("messageid") + 1;
+//            }
+//            resultSet.close();;
+//            statement.close();
+            preparedStatement = connection.prepareStatement("insert into audit(date_time, MessageData) values(?,?)");
+            preparedStatement.setString(1, date2);
+            preparedStatement.setString(2, data1);
+            
+            preparedStatement.executeUpdate();
+            preparedStatement.close();
+
+            preparedStatement = connection.prepareStatement("insert into livemessagedata (Phone_No, Device_ID, cv, Availability_GPS, Latitude, "
+                    + "North, Longitude, East, Speed, Angle, Power_Status, Acc_Status, Reserved, Mileage, Mileage_Hexa, location) "
+                    + "values (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)");
+            preparedStatement.setLong(1, Long.valueOf(phone_no));
+            preparedStatement.setString(2, device18Id);
+            preparedStatement.setString(3, finalDate);
+            preparedStatement.setString(4, availability);
+            preparedStatement.setString(5, latitude9);
+            preparedStatement.setString(6, north);
+            preparedStatement.setString(7, longitude10);
+            preparedStatement.setString(8, east);
+            preparedStatement.setString(9, speed5);
+            preparedStatement.setString(10, angle6);
+            preparedStatement.setString(11, powerStatus);
+            preparedStatement.setString(12, accStatus);
+            preparedStatement.setString(13, reserved7);
+            preparedStatement.setString(14, mileage);
+            preparedStatement.setString(15, mileageinHexa6);
+            preparedStatement.setString(16, "--");
+            preparedStatement.executeUpdate();
+            preparedStatement.close();
+
+            connection.close();
+            connection = null;
             System.out.println("#################################################################");
-            pst.executeUpdate();
-            pst.close();
-
-
-//            Statement st=con.createStatement();
-//            ResultSet rs=st.executeQuery("select Message_ID from liveMessageData");
-//            int id=0;
-//            if(rs.last()){id=rs.getInt("Message_ID")+1;}
-//            
-            Statement stmt = con.createStatement();
-            stmt.executeUpdate("insert into livemessagedata values('" + id + "','" + phone_no + "','" + device18Id + "','" + finalDate + "','" + availability + "','" + latitude9 + "','" + north + "','" + longitude10 + "','" + east + "','" + speed5 + "','" + angle6 + "','" + powerStatus + "','" + accStatus + "','" + reserved7 + "','" + mileage + "','" + mileageinHexa6 + "','Noida')");
-
-
 
         } catch (Exception e) {
-            System.out.println(e.getMessage());
-            e.printStackTrace();
+            try {
+
+                e.printStackTrace();
+                System.out.println(e.getMessage());
+                if (resultSet != null) {
+                    resultSet.close();
+                }
+                if (statement != null) {
+                    statement.close();
+                }
+                if (preparedStatement != null) {
+                    preparedStatement.close();
+                }
+
+                if (connection != null) {
+                    connection.close();
+                }
+
+            } catch (SQLException se) {
+            }
+
+        } finally {
+            try {
+
+                if (resultSet != null) {
+                    resultSet.close();
+                }
+                if (statement != null) {
+                    statement.close();
+                }
+                if (preparedStatement != null) {
+                    preparedStatement.close();
+                }
+                if (connection != null) {
+                    connection.close();
+                }
+            } catch (Exception e) {
+                
+                e.printStackTrace();
+            }
         }
     }
 
-    public static void main(String[] args) {
+    public static void main(String[] args) throws SQLException {
         //String data1 = "(011177777712BP05000077777777712110718A1303.7464N07728.0893E000.011541211.25000000000L566602F8)";
         String data1 = "(119996096676BP05000009996096676111107A3020.8757N07650.2781E000.0090120245.310001000000L0000001F)";
-        new Parser().parseData(data1);
+        // connection = DBConnectionPoolManager.getDataSource().getConnection(); 
+        dBPoolDataSource = DBConnectionPoolManager.getDataSource();
+        Parser parser = null;
+        for (int i = 0; i < 50000; i++) {
+            parser = new Parser();
+            parser.parseData(data1);
+        }
+
     }
 }
