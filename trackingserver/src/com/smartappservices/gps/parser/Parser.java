@@ -1,5 +1,7 @@
-package com.smartappservices.gps.server;
+package com.smartappservices.gps.parser;
 
+import com.smartappservices.gps.database.DataSourceProvider;
+import com.smartappservices.gps.server.IST;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
@@ -9,13 +11,12 @@ import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.TimeZone;
-import java.util.logging.Level;
-import java.util.logging.Logger;
-import snaq.db.DBPoolDataSource;
+import java.util.concurrent.Future;
+import org.apache.tomcat.jdbc.pool.DataSource;
 
 public class Parser {
 
-    private static DBPoolDataSource dBPoolDataSource = null;
+     private final DataSource dBPoolDataSource ;
     //private static Connection connection = null;
 
     String phone_no;
@@ -36,12 +37,10 @@ public class Parser {
     String mileageinHexa6;
     String finalDate;
 
-  
-    public void parseData(String data, DBPoolDataSource poolDataSource) {
-        
-        this.dBPoolDataSource = poolDataSource;
-        parseData(data);
-    }
+    public  Parser(DataSource poolDataSource){
+        this.dBPoolDataSource = poolDataSource; 
+     }
+   
     public void parseData(String data) {
         if (data.length() == 95) {
             int i = data.length();
@@ -295,7 +294,7 @@ public class Parser {
             //System.out.println("mileageinHexa6=" + mileageinHexa6 + "  Length==>" + mileageinHexa6.length());
 
         }
-        Connection connection = null;
+        Future<Connection> connection = null;
         ResultSet resultSet = null;
         Statement statement = null;
         PreparedStatement preparedStatement = null;
@@ -304,7 +303,7 @@ public class Parser {
 
             if (connection == null) {
 
-                connection = dBPoolDataSource.getConnection();
+                connection = dBPoolDataSource.getConnectionAsync();
 
             }
 
@@ -313,23 +312,15 @@ public class Parser {
 
             String date2 = date1.toString();
 
-//             statement = this.connection.createStatement();
-//             resultSet = statement.executeQuery("select max(messageid) as messageid  from audit");
-//            int id = 0;
-//            resultSet.getFetchSize();
-//            if ((resultSet != null) && (resultSet.last())) {
-//                id = resultSet.getInt("messageid") + 1;
-//            }
-//            resultSet.close();;
-//            statement.close();
-            preparedStatement = connection.prepareStatement("insert into audit(date_time, MessageData) values(?,?)");
+            Connection conn = connection.get();
+            preparedStatement = conn.prepareStatement("insert into audit(date_time, MessageData) values(?,?)");
             preparedStatement.setString(1, date2);
             preparedStatement.setString(2, data1);
             
             preparedStatement.executeUpdate();
             preparedStatement.close();
 
-            preparedStatement = connection.prepareStatement("insert into livemessagedata (Phone_No, Device_ID, cv, Availability_GPS, Latitude, "
+            preparedStatement = conn.prepareStatement("insert into livemessagedata (Phone_No, Device_ID, cv, Availability_GPS, Latitude, "
                     + "North, Longitude, East, Speed, Angle, Power_Status, Acc_Status, Reserved, Mileage, Mileage_Hexa, location) "
                     + "values (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)");
             preparedStatement.setLong(1, Long.valueOf(phone_no));
@@ -351,8 +342,8 @@ public class Parser {
             preparedStatement.executeUpdate();
             preparedStatement.close();
 
-            connection.close();
-            connection = null;
+            conn.close();
+            
             System.out.println("#################################################################");
 
         } catch (Exception e) {
@@ -370,9 +361,7 @@ public class Parser {
                     preparedStatement.close();
                 }
 
-                if (connection != null) {
-                    connection.close();
-                }
+                
 
             } catch (SQLException se) {
             }
@@ -389,9 +378,7 @@ public class Parser {
                 if (preparedStatement != null) {
                     preparedStatement.close();
                 }
-                if (connection != null) {
-                    connection.close();
-                }
+               
             } catch (Exception e) {
                 
                 e.printStackTrace();
@@ -403,10 +390,10 @@ public class Parser {
         //String data1 = "(011177777712BP05000077777777712110718A1303.7464N07728.0893E000.011541211.25000000000L566602F8)";
         String data1 = "(119996096676BP05000009996096676111107A3020.8757N07650.2781E000.0090120245.310001000000L0000001F)";
         // connection = DBConnectionPoolManager.getDataSource().getConnection(); 
-        dBPoolDataSource = DBConnectionPoolManager.getDataSource();
+        DataSource dBPoolDataSource = DataSourceProvider.getDataSource();
         Parser parser = null;
         for (int i = 0; i < 50000; i++) {
-            parser = new Parser();
+            parser = new Parser( dBPoolDataSource);
             parser.parseData(data1);
         }
 
