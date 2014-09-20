@@ -1,7 +1,5 @@
 package com.smartappservices.gps.server;
 
-import communicationserver.*;
-
 public class IST
 {
   int min2;

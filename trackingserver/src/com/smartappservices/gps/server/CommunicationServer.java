@@ -1,54 +1,38 @@
 package com.smartappservices.gps.server;
 
+import com.smartappservices.gps.parser.Parser;
 import java.io.BufferedInputStream;
 import java.io.IOException;
 import java.io.InputStreamReader;
-import java.net.ServerSocket;
 import java.net.Socket;
-import java.sql.SQLException;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import org.apache.tomcat.jdbc.pool.DataSource;
 
 public class CommunicationServer implements Runnable {
 
-    private final Socket connection;
-    private static final int port = 4014;//Listening Port No.
+    private final DataSource dBPoolDataSource;
+    private final Socket clientSocketRef;
+    
 
-    public static void main(String[] args) throws SQLException {
-
-        Socket listeningSocket = null;
-        try {
-            ServerSocket serverSocket = new ServerSocket(port);// Open socket
-            System.out.println("Mobile Server Initialized");
-
-            while (true) {
-                listeningSocket = serverSocket.accept();
-                Thread newVehicleThread = new Thread(new CommunicationServer(listeningSocket));
-                newVehicleThread.setName("New Vehicle");
-                newVehicleThread.start();
-
-            }
-        } catch (IOException ioException) {
-            System.out.println(" Exception main" + ioException.getMessage());
-        }
-    }
-
-    CommunicationServer(Socket socket) {
-        this.connection = socket;//Store serverSocketConnection
+    CommunicationServer(Socket clientSocket, DataSource dBPoolDataSource) {
+        this.clientSocketRef = clientSocket;//Store serverSocketConnection
+        this.dBPoolDataSource = dBPoolDataSource;
     }
 
     @Override
-    synchronized public void run() {
+    public void run() {
+         
         int character, inCount;
         Thread thisThread = Thread.currentThread();
         try {
             StringBuilder deviceData = new StringBuilder();
             while (true) {
-                deviceData.delete(0, deviceData.length());
+              deviceData.delete(0, deviceData.length());
                 //System.out.println("Current thread Id :: " + thisThread.getId() + "# Current Thread Name::" + thisThread.getName());
                 if (thisThread.isAlive()) {// Check this thread is alive or not
 
-                    InputStreamReader inputStreamReader = new InputStreamReader(new BufferedInputStream(connection.getInputStream()));
+                    InputStreamReader inputStreamReader = new InputStreamReader(new BufferedInputStream(clientSocketRef.getInputStream()));
 
                     if (inputStreamReader.ready()) {
                         if ((character = inputStreamReader.read()) == -1) {//Check that this is not end of stream
@@ -65,23 +49,31 @@ public class CommunicationServer implements Runnable {
                                     inCount = -1;
                                 }
                             }//while
+                            
+                            
+                            inputStreamReader = null;
                         }
                     }
                     //System.out.println("Socket: " + connection + "count: " + thisThread.getId() + " " + deviceData.toString());
                    
                     if ((deviceData.length()) >= 92) {
-                        System.out.println("Data from Vehicle Socket: " + connection + "count: " + thisThread.getId() + " " + deviceData.toString());
-                        //Parser parse = new Parser();
-                        // parse.parseData(data1,dbconnection);
+                        System.out.println("Data from Vehicle Socket: " + clientSocketRef + "count: " + thisThread.getId() + " " + deviceData.toString());
+                         Parser parse = new Parser(dBPoolDataSource);
+                        try{
+                         parse.parseData(deviceData.toString());
+                        }catch(Exception exception){
+                            System.out.println("Message Corrupted");
+                        }
                     } else {
                        // System.out.println("Socket: " + connection + "count: " + thisThread.getId() + " Data Length is less than 92 " + deviceData.toString());
                     }
-
+                    
                 } else {
                     System.out.println("Thread is not alive. ");
                 }
-                Thread.sleep(200);
+              Thread.sleep(1000); 
             }//while
+              this.clientSocketRef.close();
         } catch (IOException exception) {
             exception.printStackTrace(System.out);
             System.out.println(exception.getMessage());
@@ -91,5 +83,9 @@ public class CommunicationServer implements Runnable {
         } finally {
             System.out.println("I am Done. ");
         }
-    }//synchronized run method end here
-}
+         
+
+        
+         
+        }//synchronized run method end here
+    }
